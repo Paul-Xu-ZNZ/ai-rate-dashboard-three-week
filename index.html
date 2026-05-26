@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1400">
+<title>三周AI率对比看板（≤50%）</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background:#f0f2f5; color:#1a1a2e; min-width:1400px; }
+.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color:#fff; padding:30px 40px 25px; }
+.header h1 { font-size:28px; font-weight:700; margin-bottom:6px; }
+.header .subtitle { font-size:14px; opacity:0.85; }
+.header .filter-note { margin-top:12px; padding:10px 16px; background:rgba(255,255,255,0.15); border-radius:8px; font-size:13px; display:inline-block; }
+.header .filter-note strong { font-weight:700; color:#ffeaa7; }
+
+.kpi-row { display:grid; grid-template-columns: repeat(6,1fr); gap:16px; padding:24px 40px; }
+.kpi-card { background:#fff; border-radius:12px; padding:20px 24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); text-align:center; }
+.kpi-card .label { font-size:13px; color:#8e8e9a; margin-bottom:6px; }
+.kpi-card .value { font-size:32px; font-weight:800; }
+.kpi-card .change { font-size:12px; margin-top:6px; }
+.kpi-card .change.up { color:#e74c3c; }
+.kpi-card .change.down { color:#27ae60; }
+.kpi-card .change.neutral { color:#8e8e9a; }
+
+.tabs { display:flex; gap:4px; padding:0 40px 0; }
+.tab { padding:10px 28px; border-radius:10px 10px 0 0; border:none; font-size:14px; font-weight:600; cursor:pointer; transition:all .2s; }
+.tab.active { background:#fff; color:#667eea; box-shadow:0 -2px 8px rgba(0,0,0,0.05); }
+.tab.inactive { background:transparent; color:#8e8e9a; }
+.tab.inactive:hover { color:#667eea; }
+
+.content { padding:20px 40px 40px; }
+.charts-row { display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px; }
+.chart-panel { background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.chart-panel.full { grid-column:1/-1; }
+.chart-panel h3 { font-size:16px; font-weight:700; margin-bottom:16px; color:#1a1a2e; }
+.chart-wrap { position:relative; height:380px; }
+.chart-wrap.tall { height:480px; }
+.chart-wrap.short { height:320px; }
+
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { background:#667eea; color:#fff; padding:10px 12px; text-align:left; font-weight:600; white-space:nowrap; }
+td { padding:9px 12px; border-bottom:1px solid #eee; }
+tr:hover td { background:#f8f9ff; }
+.week-header { background:#eef0ff !important; font-weight:700; }
+.bar-cell { position:relative; }
+.bar-inner { height:6px; border-radius:3px; display:inline-block; min-width:2px; }
+.bar-low { background:#27ae60; }
+.bar-mid { background:#f39c12; }
+
+.legend-inline { display:flex; gap:16px; margin-bottom:16px; font-size:13px; }
+.legend-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; }
+.trend-arrow { font-size:18px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 三周AI率对比看板</h1>
+  <p class="subtitle">5.4 — 5.24 · 按部门 & 文书主管维度 · 排除AI率>50%的高风险数据</p>
+  <div class="filter-note">
+    ⚠️ 已剔除 AI率 > 50% 的数据：第1周 42条 / 第2周 20条 / 第3周 14条 · 
+    保留 <strong>低AI率（0-20%）</strong> 和 <strong>中AI率（20-50%）</strong> 两档
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card"><div class="label">📝 保留总篇数</div><div class="value" style="color:#667eea;" id="kpi-total">2,874</div><div class="change neutral">原3,500 → 剔除76</div></div>
+  <div class="kpi-card"><div class="label">📈 三周均值</div><div class="value" style="color:#764ba2;" id="kpi-avg">7.0%</div><div class="change up">5.5% → 7.0% → 8.4%</div></div>
+  <div class="kpi-card"><div class="label">🟢 低AI率（0-20%）</div><div class="value" style="color:#27ae60;" id="kpi-low">2,672</div><div class="change">占 93.0%</div></div>
+  <div class="kpi-card"><div class="label">🟡 中AI率（20-50%）</div><div class="value" style="color:#f39c12;" id="kpi-mid">202</div><div class="change">占 7.0%</div></div>
+  <div class="kpi-card"><div class="label">👥 主管人数</div><div class="value" style="color:#2d3436;">14</div><div class="change neutral">跨三周累计</div></div>
+  <div class="kpi-card"><div class="label">🏢 部门数</div><div class="value" style="color:#2d3436;">5</div><div class="change neutral">交付一/二/三/六/七部</div></div>
+</div>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" onclick="switchTab('dept')">🏢 按部门</button>
+  <button class="tab inactive" onclick="switchTab('sup')">👤 按文书主管</button>
+  <button class="tab inactive" onclick="switchTab('detail')">📋 明细表格</button>
+</div>
+
+<div class="content" id="tab-content"></div>
+
+<script>
+const DATA = {"5.4-5.10":{"total_raw":742,"excluded_high":42,"kept":700,"supervisors":{"蒯冰洁":{"total":142,"avg":3.5,"low":140,"mid":2},"徐萍":{"total":119,"avg":5.3,"low":115,"mid":4},"郭佳佳":{"total":100,"avg":4.4,"low":93,"mid":7},"彭明珠":{"total":97,"avg":3.4,"low":96,"mid":1},"李倩倩":{"total":84,"avg":12.9,"low":58,"mid":26},"赵倩倩":{"total":51,"avg":5.0,"low":51,"mid":0},"陈娜":{"total":28,"avg":4.6,"low":28,"mid":0},"袁嘉艺":{"total":24,"avg":5.9,"low":23,"mid":1},"孙美冬":{"total":19,"avg":9.1,"low":16,"mid":3},"高伟杰":{"total":16,"avg":4.3,"low":16,"mid":0},"徐逸凡":{"total":11,"avg":8.1,"low":9,"mid":2},"蔡丽佳":{"total":9,"avg":4.7,"low":8,"mid":1}},"departments":{"交付二部":{"total":175,"avg":4.8,"low":167,"mid":8},"交付七部":{"total":158,"avg":3.5,"low":156,"mid":2},"交付一部":{"total":140,"avg":10.2,"low":110,"mid":30},"交付三部":{"total":119,"avg":5.3,"low":115,"mid":4},"交付六部":{"total":97,"avg":3.4,"low":96,"mid":1}}},"5.11-5.17":{"total_raw":1039,"excluded_high":20,"kept":1019,"supervisors":{"蒯冰洁":{"total":217,"avg":6.8,"low":199,"mid":18},"郭佳佳":{"total":170,"avg":5.4,"low":163,"mid":7},"徐萍":{"total":161,"avg":11.5,"low":139,"mid":22},"彭明珠":{"total":152,"avg":8.4,"low":138,"mid":14},"李倩倩":{"total":115,"avg":4.1,"low":110,"mid":5},"赵倩倩":{"total":85,"avg":5.4,"low":81,"mid":4},"陈娜":{"total":40,"avg":6.2,"low":40,"mid":0},"袁嘉艺":{"total":36,"avg":5.7,"low":36,"mid":0},"孙美冬":{"total":26,"avg":0.3,"low":26,"mid":0},"蔡丽佳":{"total":8,"avg":18.8,"low":4,"mid":4},"高伟杰":{"total":4,"avg":15.0,"low":3,"mid":1},"徐逸凡":{"total":3,"avg":8.3,"low":3,"mid":0},"陆倩倩":{"total":2,"avg":0.0,"low":2,"mid":0}},"departments":{"交付二部":{"total":293,"avg":5.4,"low":282,"mid":11},"交付七部":{"total":221,"avg":7.0,"low":202,"mid":19},"交付一部":{"total":189,"avg":4.7,"low":180,"mid":9},"交付三部":{"total":161,"avg":11.5,"low":139,"mid":22},"交付六部":{"total":152,"avg":8.4,"low":138,"mid":14}}},"5.18-5.24":{"total_raw":1169,"excluded_high":14,"kept":1155,"supervisors":{"蒯冰洁":{"total":215,"avg":10.5,"low":196,"mid":19},"彭明珠":{"total":197,"avg":7.2,"low":190,"mid":7},"李倩倩":{"total":183,"avg":8.3,"low":169,"mid":14},"郭佳佳":{"total":180,"avg":6.5,"low":172,"mid":8},"徐萍":{"total":150,"avg":10.7,"low":132,"mid":18},"赵倩倩":{"total":74,"avg":6.6,"low":69,"mid":5},"袁嘉艺":{"total":54,"avg":6.6,"low":54,"mid":0},"陈娜":{"total":34,"avg":9.7,"low":29,"mid":5},"蔡丽佳":{"total":33,"avg":10.5,"low":30,"mid":3},"孙美冬":{"total":28,"avg":5.8,"low":27,"mid":1},"葛丹丹":{"total":4,"avg":7.8,"low":4,"mid":0},"高伟杰":{"total":3,"avg":10.7,"low":3,"mid":0}},"departments":{"交付二部":{"total":308,"avg":6.5,"low":295,"mid":13},"交付一部":{"total":278,"avg":8.5,"low":255,"mid":23},"交付七部":{"total":218,"avg":10.5,"low":199,"mid":19},"交付六部":{"total":197,"avg":7.2,"low":190,"mid":7},"交付三部":{"total":154,"avg":10.6,"low":136,"mid":18}}}};
+
+const WEEKS = ['5.4-5.10','5.11-5.17','5.18-5.24'];
+const WEEK_SHORT = ['W1\n5.4-10','W2\n5.11-17','W3\n5.18-24'];
+const COLORS = { low:'#27ae60', mid:'#f39c12', avg1:'#667eea', avg2:'#e056a0', avg3:'#00b894' };
+const AVG_COLORS = ['#667eea','#764ba2','#e17055'];
+
+// Compute rank ordering
+function getDeptRank() {
+  let totals = {};
+  WEEKS.forEach(w => {
+    Object.entries(DATA[w].departments).forEach(([k,v]) => {
+      totals[k] = (totals[k]||0) + v.total;
+    });
+  });
+  return Object.entries(totals).sort((a,b) => b[1]-a[1]).map(e=>e[0]);
+}
+function getSupRank() {
+  let totals = {};
+  WEEKS.forEach(w => {
+    Object.entries(DATA[w].supervisors).forEach(([k,v]) => {
+      totals[k] = (totals[k]||0) + v.total;
+    });
+  });
+  return Object.entries(totals).sort((a,b) => b[1]-a[1]).map(e=>e[0]);
+}
+
+let activeTab = 'dept';
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.className = t.textContent.includes(tab==='dept'?'部门':tab==='sup'?'主管':'明细') ? 'tab active' : 'tab inactive');
+  renderTab(tab);
+}
+
+function renderTab(tab) {
+  const c = document.getElementById('tab-content');
+  if (tab === 'dept') {
+    const depts = getDeptRank();
+    c.innerHTML = `
+      <div class="charts-row">
+        <div class="chart-panel">
+          <h3>按部门 · 低AI率（0-20%）三周对比</h3>
+          <div class="chart-wrap"><canvas id="chart-dept-low"></canvas></div>
+        </div>
+        <div class="chart-panel">
+          <h3>按部门 · 中AI率（20-50%）三周对比</h3>
+          <div class="chart-wrap"><canvas id="chart-dept-mid"></canvas></div>
+        </div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-panel">
+          <h3>按部门 · AI率均值趋势</h3>
+          <div class="chart-wrap"><canvas id="chart-dept-avg"></canvas></div>
+        </div>
+        <div class="chart-panel">
+          <h3>按部门 · 三周堆叠概览（低+中AI率篇数）</h3>
+          <div class="chart-wrap"><canvas id="chart-dept-stack"></canvas></div>
+        </div>
+      </div>`;
+    setTimeout(() => {
+      renderDeptLow(depts);
+      renderDeptMid(depts);
+      renderDeptAvg(depts);
+      renderDeptStack(depts);
+    }, 50);
+  } else if (tab === 'sup') {
+    const sups = getSupRank();
+    c.innerHTML = `
+      <div class="charts-row">
+        <div class="chart-panel full">
+          <h3>按文书主管 · 三周AI率均值趋势（Top 8 按总量）</h3>
+          <div class="chart-wrap tall"><canvas id="chart-sup-avg"></canvas></div>
+        </div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-panel">
+          <h3>按文书主管 · 低AI率（0-20%）三周对比</h3>
+          <div class="chart-wrap"><canvas id="chart-sup-low"></canvas></div>
+        </div>
+        <div class="chart-panel">
+          <h3>按文书主管 · 中AI率（20-50%）三周对比</h3>
+          <div class="chart-wrap"><canvas id="chart-sup-mid"></canvas></div>
+        </div>
+      </div>`;
+    setTimeout(() => {
+      renderSupAvg(sups.slice(0,8));
+      renderSupLow(sups.slice(0,10));
+      renderSupMid(sups.slice(0,10));
+    }, 50);
+  } else {
+    // detail table
+    c.innerHTML = buildDetailTable();
+  }
+}
+
+function getVal(dict, key, field, def) {
+  return (dict[key] && dict[key][field] !== undefined) ? dict[key][field] : def;
+}
+
+// --- Department Charts ---
+function renderDeptLow(depts) {
+  new Chart(document.getElementById('chart-dept-low'), {
+    type:'bar', data:{
+      labels:depts,
+      datasets:WEEKS.map((w,i)=>({label:WEEK_SHORT[i].replace('\n',' '),data:depts.map(d=>getVal(DATA[w].departments,d,'low',0)),backgroundColor:AVG_COLORS[i],borderRadius:4}))
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:20}}},
+      scales:{y:{title:{display:true,text:'篇数'},beginAtZero:true},x:{title:{display:true,text:'部门'}}}
+    }
+  });
+}
+function renderDeptMid(depts) {
+  new Chart(document.getElementById('chart-dept-mid'), {
+    type:'bar', data:{
+      labels:depts,
+      datasets:WEEKS.map((w,i)=>({label:WEEK_SHORT[i].replace('\n',' '),data:depts.map(d=>getVal(DATA[w].departments,d,'mid',0)),backgroundColor:AVG_COLORS[i],borderRadius:4}))
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:20}}},
+      scales:{y:{title:{display:true,text:'篇数'},beginAtZero:true},x:{title:{display:true,text:'部门'}}}
+    }
+  });
+}
+function renderDeptAvg(depts) {
+  new Chart(document.getElementById('chart-dept-avg'), {
+    type:'line', data:{
+      labels:WEEK_SHORT.map(w=>w.replace('\n',' ')),
+      datasets:depts.map((d,i)=>({label:d,data:WEEKS.map(w=>getVal(DATA[w].departments,d,'avg',null)),borderColor:['#667eea','#e17055','#00b894','#f39c12','#e056a0'][i],backgroundColor:'transparent',borderWidth:3,tension:0.3,pointRadius:6,pointHoverRadius:8}))
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:16}}},
+      scales:{y:{title:{display:true,text:'AI率均值 (%)'},min:0}}
+    }
+  });
+}
+function renderDeptStack(depts) {
+  new Chart(document.getElementById('chart-dept-stack'), {
+    type:'bar', data:{
+      labels:depts.flatMap(d=>WEEKS.map(w=>w)),
+      datasets:[
+        {label:'低AI率 0-20%',data:depts.flatMap(d=>WEEKS.map(w=>getVal(DATA[w].departments,d,'low',0))),backgroundColor:'#27ae60',borderRadius:0},
+        {label:'中AI率 20-50%',data:depts.flatMap(d=>WEEKS.map(w=>getVal(DATA[w].departments,d,'mid',0))),backgroundColor:'#f39c12',borderRadius:0},
+      ]
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:20}}},
+      scales:{x:{stacked:true,title:{display:true,text:'部门 × 周次'}},y:{stacked:true,title:{display:true,text:'篇数'},beginAtZero:true}}
+    }
+  });
+}
+
+// --- Supervisor Charts ---
+function renderSupAvg(sups) {
+  new Chart(document.getElementById('chart-sup-avg'), {
+    type:'line', data:{
+      labels:WEEK_SHORT.map(w=>w.replace('\n',' ')),
+      datasets:sups.map((s,i)=>({label:s,data:WEEKS.map(w=>getVal(DATA[w].supervisors,s,'avg',null)),borderColor:['#667eea','#e17055','#00b894','#f39c12','#e056a0','#6c5ce7','#fd79a8','#0984e3'][i],backgroundColor:'transparent',borderWidth:3,tension:0.3,pointRadius:6,pointHoverRadius:8}))
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:14,font:{size:11}}}},
+      scales:{y:{title:{display:true,text:'AI率均值 (%)'},min:0}}
+    }
+  });
+}
+function renderSupLow(sups) {
+  new Chart(document.getElementById('chart-sup-low'), {
+    type:'bar', data:{
+      labels:sups,
+      datasets:WEEKS.map((w,i)=>({label:WEEK_SHORT[i].replace('\n',' '),data:sups.map(s=>getVal(DATA[w].supervisors,s,'low',0)),backgroundColor:AVG_COLORS[i],borderRadius:4}))
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:20}}},
+      scales:{y:{title:{display:true,text:'篇数'},beginAtZero:true}}
+    }
+  });
+}
+function renderSupMid(sups) {
+  new Chart(document.getElementById('chart-sup-mid'), {
+    type:'bar', data:{
+      labels:sups,
+      datasets:WEEKS.map((w,i)=>({label:WEEK_SHORT[i].replace('\n',' '),data:sups.map(s=>getVal(DATA[w].supervisors,s,'mid',0)),backgroundColor:AVG_COLORS[i],borderRadius:4}))
+    }, options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:20}}},
+      scales:{y:{title:{display:true,text:'篇数'},beginAtZero:true}}
+    }
+  });
+}
+
+// --- Detail Table ---
+function buildDetailTable() {
+  const depts = getDeptRank();
+  let rows = '';
+  depts.forEach(d => {
+    rows += `<tr class="week-header"><td colspan="6">🏢 ${d}</td></tr>`;
+    WEEKS.forEach(w => {
+      const v = DATA[w].departments[d];
+      if (!v) return;
+      const lowPct = (v.low/v.total*100).toFixed(0);
+      const midPct = (v.mid/v.total*100).toFixed(0);
+      rows += `<tr>
+        <td style="padding-left:24px;">${w}</td>
+        <td>${v.total}</td>
+        <td style="color:#667eea;font-weight:700;">${v.avg}%</td>
+        <td><span class="bar-cell">${v.low} <span class="bar-inner bar-low" style="width:${lowPct}px;"></span> ${lowPct}%</span></td>
+        <td><span class="bar-cell">${v.mid} <span class="bar-inner bar-mid" style="width:${midPct}px;"></span> ${midPct}%</span></td>
+        <td><em style="color:#8e8e9a;font-size:12px;">已剔除${DATA[w].total_raw - DATA[w].kept}篇>50%</em></td>
+      </tr>`;
+    });
+  });
+  // Separator
+  rows += `<tr style="background:#f0f2f5;"><td colspan="6" style="height:20px;"></td></tr>`;
+  rows += `<tr class="week-header"><td colspan="6">👤 文书主管明细</td></tr>`;
+  const sups = getSupRank();
+  sups.forEach(s => {
+    rows += `<tr class="week-header" style="background:#f8f9ff;"><td colspan="6">${s}</td></tr>`;
+    WEEKS.forEach(w => {
+      const v = DATA[w].supervisors[s];
+      if (!v) return;
+      const lowPct = (v.low/v.total*100).toFixed(0);
+      const midPct = (v.mid/v.total*100).toFixed(0);
+      rows += `<tr>
+        <td style="padding-left:24px;">${w}</td>
+        <td>${v.total}</td>
+        <td style="color:#667eea;font-weight:700;">${v.avg}%</td>
+        <td><span class="bar-cell">${v.low} <span class="bar-inner bar-low" style="width:${lowPct}px;"></span> ${lowPct}%</span></td>
+        <td><span class="bar-cell">${v.mid} <span class="bar-inner bar-mid" style="width:${midPct}px;"></span> ${midPct}%</span></td>
+        <td></td>
+      </tr>`;
+    });
+  });
+  return `<div class="chart-panel full"><h3>📋 三周明细数据（仅保留 ≤50% AI率）</h3>
+    <table>
+      <thead><tr><th>周期</th><th>保留篇数</th><th>AI率均值</th><th>🟢 低AI率 0-20%</th><th>🟡 中AI率 20-50%</th><th>备注</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+// Initial render
+renderTab('dept');
+</script>
+</body>
+</html>
