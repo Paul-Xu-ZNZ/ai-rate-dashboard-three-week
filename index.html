@@ -139,7 +139,7 @@ function renderTab(tab) {
         </div>
         <div class="chart-panel">
           <h3>按部门 · 三周堆叠概览（低+中AI率篇数）</h3>
-          <div class="chart-wrap"><canvas id="chart-dept-stack"></canvas></div>
+          <div class="chart-wrap tall"><canvas id="chart-dept-stack"></canvas></div>
         </div>
       </div>`;
     setTimeout(() => {
@@ -220,9 +220,38 @@ function renderDeptAvg(depts) {
   });
 }
 function renderDeptStack(depts) {
+  const shortDept = {'交付一部':'一部','交付二部':'二部','交付三部':'三部','交付六部':'六部','交付七部':'七部'};
+  const nDepts = depts.length;
+  const nWeeks = WEEKS.length;
+  // Plugin: draw vertical separators between department groups
+  const groupSeparatorPlugin = {
+    id:'groupSeparator',
+    afterDraw(chart){
+      const {ctx, scales:{x,y}} = chart;
+      if (!x || !y) return;
+      ctx.save();
+      ctx.strokeStyle = '#d0d0e0';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6,4]);
+      for (let g = 1; g < nDepts; g++) {
+        const idx = g * nWeeks;
+        const xPos = x.getPixelForValue(idx) - x.getPixelForValue(0);
+        const x0 = x.getPixelForValue(0) + xPos / 2 + x.getPixelForValue(idx-1) / 2 - x.getPixelForValue(0) / 2;
+        // Average of idx-1 and idx bar centers
+        const leftCenter = x.getPixelForValue(idx-1) + x.width/nDepts/nWeeks/2;
+        const rightCenter = x.getPixelForValue(idx) + x.width/nDepts/nWeeks/2;
+        const mid = (leftCenter + rightCenter) / 2;
+        ctx.beginPath();
+        ctx.moveTo(mid, y.getPixelForValue(y.max));
+        ctx.lineTo(mid, y.getPixelForValue(0));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
   new Chart(document.getElementById('chart-dept-stack'), {
     type:'bar', data:{
-      labels:depts.flatMap(d=>WEEKS.map(w=>w)),
+      labels:depts.flatMap(d=>WEEKS.map((w,i)=>shortDept[d] + '\n' + WEEK_SHORT[i].replace('\n','-'))),
       datasets:[
         {label:'低AI率 0-20%',data:depts.flatMap(d=>WEEKS.map(w=>getVal(DATA[w].departments,d,'low',0))),backgroundColor:'#27ae60',borderRadius:0},
         {label:'中AI率 20-50%',data:depts.flatMap(d=>WEEKS.map(w=>getVal(DATA[w].departments,d,'mid',0))),backgroundColor:'#f39c12',borderRadius:0},
@@ -230,8 +259,9 @@ function renderDeptStack(depts) {
     }, options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:20}}},
-      scales:{x:{stacked:true,title:{display:true,text:'部门 × 周次'}},y:{stacked:true,title:{display:true,text:'篇数'},beginAtZero:true}}
-    }
+      scales:{x:{stacked:true,title:{display:true,text:'部门 × 周次'},ticks:{maxRotation:0,font:{size:10}}},y:{stacked:true,title:{display:true,text:'篇数'},beginAtZero:true}}
+    },
+    plugins:[groupSeparatorPlugin]
   });
 }
 
